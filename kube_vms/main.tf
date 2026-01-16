@@ -1,33 +1,50 @@
-resource "proxmox_vm_qemu" "k8s_nodes" {
-  for_each = var.k8s_nodes
+resource "proxmox_virtual_environment_vm" "kube_nodes" {
+  # The Magic Loop: Creates one VM for every entry in your .tfvars
+  for_each = var.nodes
 
-  name        = each.key        # "k8s-master", "k8s-worker-01", etc.
-  vmid        = each.value.vmid # 200, 201, etc.
-  target_node = "pve"
-  clone       = "ubuntu-2404-template"
+  name      = each.key
+  node_name = var.common.node_name
+  vm_id     = each.value.vm_id
 
-  agent   = 1
-  cores   = each.value.cores # 2 or 4
-  sockets = 1
-  cpu     = "host"
-  memory  = each.value.memory # 4096 or 8192
+  clone {
+    vm_id = var.common.template_id
+    full  = true
+  }
+
+  agent {
+    enabled = true
+  }
+
+  cpu {
+    cores = each.value.cores
+    type  = "host"
+  }
+
+  memory {
+    dedicated = each.value.memory
+  }
 
   disk {
-    storage = "local-lvm"
-    type    = "scsi"
-    size    = each.value.disk # "20G" or "40G"
+    datastore_id = "local-lvm"
+    interface    = "scsi0"
+    size         = each.value.disk_size
   }
 
-  network {
-    model  = "virtio"
-    bridge = "vmbr0"
+  network_device {
+    bridge = var.common.bridge
   }
 
-  os_type = "cloud-init"
-  ciuser  = "ubuntu"
-  sshkeys = var.ssh_key
+  initialization {
+    ip_config {
+      ipv4 {
+        address = each.value.ip
+        gateway = var.common.gateway
+      }
+    }
 
-  # Dynamic IP Injection
-  # format() helps to construct the string safely
-  ipconfig0 = format("ip=%s/24,gw=%s", each.value.ip, var.gateway)
+    user_account {
+      username = "ubuntu"
+      keys     = [var.ssh_key]
+    }
+  }
 }

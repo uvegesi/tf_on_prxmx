@@ -1,39 +1,33 @@
-variable "pm_api_url" {
-  type = string
-}
-
-variable "pm_api_token_id" {
-  type = string
-}
-
-variable "pm_api_token_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "pm_timeout" {
-  type    = number
-  default = 60
-}
-
-variable "ssh_key" {
-  type = string
-  sensitive = true
-}
-
-variable "gateway" {
-  type    = string
-  default = "192.168.1.1"
-}
-
-# The Configuration Map
-variable "k8s_nodes" {
-  description = "Configuration for Kubernetes Nodes"
+# The structure for your VMs
+variable "nodes" {
+  description = "Map of Kubernetes nodes to create"
   type = map(object({
-    vmid   = number
-    ip     = string
-    cores  = number
-    memory = number
-    disk   = string
+    vm_id     = number
+    cores     = number
+    memory    = number
+    disk_size = number
+    ip        = string
   }))
 }
+
+# Common settings shared by all VMs
+variable "common" {
+  type = object({
+    node_name   = string
+    template_id = number
+    gateway     = string
+    bridge      = string
+  })
+  default = {
+    node_name   = "pve"
+    template_id = 9000
+    gateway     = "192.168.1.1"
+    bridge      = "vmbr0"
+  }
+}
+
+# Keep your existing variables
+variable "pm_api_url" {}
+variable "pm_api_token_id" {}
+variable "pm_api_token_secret" {}
+variable "ssh_key" {}

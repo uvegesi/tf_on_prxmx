@@ -1,26 +1,25 @@
-# terraform.tfvars
-gateway = "192.168.1.1"
-
-k8s_nodes = {
+nodes = {
   "kube-master" = {
-    vmid   = 200
-    ip     = "192.168.1.100"
-    cores  = 2
-    memory = 4096
-    disk   = "10G"
+    vm_id     = 200
+    cores     = 2
+    memory    = 4096
+    disk_size = 10
+    ip        = "192.168.1.100/24"
   }
+
   "kube-worker-01" = {
-    vmid   = 201
-    ip     = "192.168.1.101"
-    cores  = 4
-    memory = 8192
-    disk   = "15G"
+    vm_id     = 201
+    cores     = 4
+    memory    = 8192
+    disk_size = 15
+    ip        = "192.168.1.101/24"
   }
+
   "kube-worker-02" = {
-    vmid   = 202
-    ip     = "192.168.1.102"
-    cores  = 4
-    memory = 8192
-    disk   = "15G"
+    vm_id     = 202
+    cores     = 4
+    memory    = 8192
+    disk_size = 15
+    ip        = "192.168.1.102/24"
   }
 }
