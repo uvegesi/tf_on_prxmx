@@ -21,7 +21,7 @@ variable "common" {
   default = {
     node_name   = "pve"
     template_id = 9000
-    gateway     = "192.168.1.1"
+    gateway     = "192.168.0.1"
     bridge      = "vmbr0"
   }
 }
@@ -30,4 +30,8 @@ variable "common" {
 variable "pm_api_url" {}
 variable "pm_api_token_id" {}
 variable "pm_api_token_secret" {}
-variable "ssh_key" {}
+variable "ssh_key" {
+  description = "SSH public key for VM access"
+  type        = string
+  sensitive   = true
+}

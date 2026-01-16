@@ -49,25 +49,7 @@ resource "proxmox_virtual_environment_vm" "kube_nodes" {
   }
 }
 
-resource "local_file" "ansible_inventory" {
-  filename = "./inventory.ini"
-  content  = <<-EOT
-    [master]
-    %{ for name, vm in proxmox_virtual_environment_vm.kube_nodes ~}
-    %{ if length(regexall("master", name)) > 0 ~}
-    ${name} ansible_host=${split("/", vm.initialization[0].ip_config[0].ipv4[0].address)[0]} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-    %{ endif ~}
-    %{ endfor ~}
-
-    [node]
-    %{ for name, vm in proxmox_virtual_environment_vm.kube_nodes ~}
-    %{ if length(regexall("worker", name)) > 0 ~}
-    ${name} ansible_host=${split("/", vm.initialization[0].ip_config[0].ipv4[0].address)[0]} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-    %{ endif ~}
-    %{ endfor ~}
-
-    [k3s_cluster:children]
-    master
-    node
-  EOT
+resource "local_file" "ansible_inventory_yaml" {
+  filename = "${path.module}/../ansible_code/inventory.yml"
+  content  = yamlencode(local.ansible_inventory)
 }

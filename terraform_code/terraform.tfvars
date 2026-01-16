@@ -4,7 +4,7 @@ nodes = {
     cores     = 2
     memory    = 4096
     disk_size = 10
-    ip        = "192.168.1.100/24"
+    ip        = "192.168.0.200/24"
   }
 
   "kube-worker-01" = {
@@ -12,7 +12,7 @@ nodes = {
     cores     = 4
     memory    = 8192
     disk_size = 15
-    ip        = "192.168.1.101/24"
+    ip        = "192.168.0.201/24"
   }
 
   "kube-worker-02" = {
@@ -20,6 +20,6 @@ nodes = {
     cores     = 4
     memory    = 8192
     disk_size = 15
-    ip        = "192.168.1.102/24"
+    ip        = "192.168.0.202/24"
   }
 }
