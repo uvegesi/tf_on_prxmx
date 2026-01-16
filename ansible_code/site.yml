@@ -1,0 +1,21 @@
+---
+# 1. Prepare all nodes
+- name: Prepare System
+  hosts: all
+  become: yes
+  roles:
+    - common
+
+# 2. Setup the Control Plane
+- name: Setup K3s Master
+  hosts: master
+  become: yes
+  roles:
+    - k3s_master
+
+# 3. Join the Workers
+- name: Setup K3s Workers
+  hosts: node
+  become: yes
+  roles:
+    - k3s_worker

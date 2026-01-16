@@ -1,0 +1,18 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install required packages
+  apt:
+    name:
+      - curl
+      - software-properties-common
+    state: present
+
+- name: Disable swap (Recommended for Kubernetes)
+  shell: |
+    swapoff -a
+    sed -i '/swap/d' /etc/fstab
+  when: ansible_swaptotal_mb > 0
