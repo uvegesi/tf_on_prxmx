@@ -23,3 +23,14 @@ nodes = {
     ip        = "192.168.0.202/24"
   }
 }
+
+containers = {
+  "vault-server" = {
+    vm_id     = 300
+    cores     = 1
+    memory    = 1024
+    disk_size = 8
+    ip        = "192.168.0.203/24"
+    template  = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+  }
+}

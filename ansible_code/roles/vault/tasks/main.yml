@@ -1,0 +1,43 @@
+---
+- name: Install dependencies for Docker
+  apt:
+    name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release, python3-pip]
+    update_cache: yes
+
+- name: Install Docker SDK for Python (required for community.docker)
+  pip:
+    name: docker
+
+- name: Create Vault directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0750'
+  loop:
+    - "/opt/vault/config"
+    - "/opt/vault/data"
+
+- name: Configure Vault (Filesystem storage)
+  copy:
+    dest: "/opt/vault/config/vault-config.hcl"
+    content: |
+      storage "file" { path = "/vault/file" }
+      listener "tcp" {
+        address     = "0.0.0.0:8200"
+        tls_disable = 1
+      }
+      ui = true
+
+- name: Run Vault Container
+  community.docker.docker_container:
+    name: vault
+    image: hashicorp/vault:latest
+    restart_policy: always
+    capabilities:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    volumes:
+      - "/opt/vault/config/vault-config.hcl:/vault/config/vault-config.hcl"
+      - "/opt/vault/data:/vault/file"
+    command: "server -config=/vault/config/vault-config.hcl"

@@ -26,6 +26,18 @@ variable "common" {
   }
 }
 
+variable "containers" {
+  description = "Map of LXC containers to create"
+  type = map(object({
+    vm_id     = number
+    cores     = number
+    memory    = number
+    disk_size = number
+    ip        = string
+    template  = string
+  }))
+}
+
 # Keep your existing variables
 variable "pm_api_url" {}
 variable "pm_api_token_id" {}
