@@ -5,6 +5,7 @@
   become: true
   roles:
     - common
+  tags: ["prepare"]
 
 # 2. Setup the Control Plane
 - name: Setup K3s Master
@@ -12,6 +13,7 @@
   become: true
   roles:
     - k3s_master
+  tags: ["k3s_master"]
 
 # 3. Join the Workers
 - name: Setup K3s Workers
@@ -19,3 +21,12 @@
   become: true
   roles:
     - k3s_worker
+  tags: ["k3s_worker"]
+
+# 4. Setup Vault Server
+- name: Setup Vault Server
+  hosts: vault
+  become: true
+  roles:
+    - vault_server
+  tags: ["vault"]

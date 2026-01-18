@@ -2,11 +2,17 @@
 - name: Install dependencies for Docker
   apt:
     name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release, python3-pip]
-    update_cache: yes
+    update_cache: true
 
 - name: Install Docker SDK for Python (required for community.docker)
   pip:
     name: docker
+
+- name: Ensure Docker is started and enabled
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
 
 - name: Create Vault directories
   file:

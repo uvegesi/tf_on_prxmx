@@ -71,6 +71,10 @@ resource "proxmox_virtual_environment_container" "infra_nodes" {
       }
     }
 
+    dns {
+    servers = ["1.1.1.1", "8.8.8.8"]
+    }
+
     user_account {
       #username = "ubuntu"
       keys     = [var.ssh_key]
