@@ -1,0 +1,56 @@
+---
+# 1. Download the Signing Key (Cleaner than curl)
+- name: Download Tailscale repo key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg"
+    dest: "/usr/share/keyrings/tailscale-archive-keyring.gpg"
+    mode: '0644'
+
+# 2. Add the Repository Source
+- name: Add Tailscale repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main"
+    filename: tailscale
+    state: present
+
+# 3. Install
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    update_cache: true
+    state: present
+
+- name: Ensure Tailscale service is running
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+# 4. Authenticate (Only runs if not already logged in)
+- name: Bring Tailscale online
+  ansible.builtin.command: >
+    tailscale up --authkey={{ tailscale_auth_key }}
+  # We check if the socket exists to know if it is running, 
+  # but checking 'tailscale status' is often more reliable for idempotency.
+  # For simplicity, this works, but usually 'creates' isn't perfect for 'tailscale up'.
+  # A simple workaround to prevent re-running is checking for the config file.
+  args:
+    creates: /var/lib/tailscale/tailscaled.state
+
+# 5. Create a Directory for Vault Certs (CRITICAL STEP)
+# We need a specific place to store certs so we can mount them into Docker later.
+- name: Create Vault TLS directory
+  ansible.builtin.file:
+    path: /opt/vault/tls
+    state: directory
+    mode: '0755'
+
+# 6. Generate the Certs
+# 'tailscale cert' drops files in the CURRENT directory.
+# We use 'chdir' to force them into /opt/vault/tls
+- name: Request Tailscale HTTPS certificate
+  ansible.builtin.command: >
+    tailscale cert {{ inventory_hostname }}.{{ tailscale_domain }}
+  args:
+    chdir: /opt/vault/tls   # <--- Run inside this folder
+    creates: "/opt/vault/tls/{{ inventory_hostname }}.{{ tailscale_domain }}.crt"

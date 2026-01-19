@@ -37,3 +37,5 @@ override.tf.json
 terraform.rc
 
 ansible_code/inventory*
+ans_file*
+.vault_pass

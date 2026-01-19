@@ -1,12 +1,25 @@
 ---
-- name: Install dependencies for Docker
-  apt:
-    name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release, python3-pip]
+- name: Install Docker Engine and dependencies
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - docker.io
     update_cache: true
+    state: present
 
-- name: Install Docker SDK for Python (required for community.docker)
-  pip:
-    name: docker
+- name: Install Docker SDK for Python
+  ansible.builtin.pip:
+    name: 
+    - "docker==6.1.3"
+    - "urllib3<2.0"
+    - "requests==2.31.0"
+    state: present
+    executable: pip3
 
 - name: Ensure Docker is started and enabled
   ansible.builtin.systemd:
@@ -15,35 +28,72 @@
     enabled: true
 
 - name: Create Vault directories
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: '0750'
+    mode: '0777'
   loop:
     - "/opt/vault/config"
     - "/opt/vault/data"
 
 - name: Configure Vault (Filesystem storage)
-  copy:
+  ansible.builtin.copy:
     dest: "/opt/vault/config/vault-config.hcl"
     content: |
-      storage "file" { path = "/vault/file" }
-      listener "tcp" {
-        address     = "0.0.0.0:8200"
-        tls_disable = 1
+      {
+        "disable_mlock": true,
+        "storage": {
+          "file": {
+            "path": "/vault/file"
+          }
+        },
+        "listener": [
+          {
+            "tcp": {
+              "address": "0.0.0.0:8200",
+              "tls_cert_file": "/tailscale-certs/{{ inventory_hostname }}.{{ tailscale_domain }}.crt",
+              "tls_key_file": "/tailscale-certs/{{ inventory_hostname }}.{{ tailscale_domain }}.key"
+            }
+          }
+        ],
+        "default_lease_ttl": "168h",
+        "max_lease_ttl": "720h",
+        "ui": true
       }
-      ui = true
+    mode: '0644'
 
 - name: Run Vault Container
   community.docker.docker_container:
     name: vault
     image: hashicorp/vault:latest
+    state: started
     restart_policy: always
-    capabilities:
-      - IPC_LOCK
+    privileged: true
     ports:
       - "8200:8200"
+    env:
+      VAULT_API_ADDR: "http://192.168.0.203:8200"
+      VAULT_LISTEN_ADDRESS: "0.0.0.0:8200"
+    capabilities:
+      - IPC_LOCK
     volumes:
       - "/opt/vault/config/vault-config.hcl:/vault/config/vault-config.hcl"
       - "/opt/vault/data:/vault/file"
+      - "/opt/vault/config/vault-config.hcl:/vault/config/vault-config.hcl" 
+      - "/opt/vault/data:/vault/file" 
+      - "/var/lib/tailscale/certs:/tailscale-certs:ro"
     command: "server -config=/vault/config/vault-config.hcl"
+
+- name: Wait 15 seconds for Vault to stabilize
+  ansible.builtin.pause:
+    seconds: 15
+
+- name: Get Vault Container Status
+  community.docker.docker_container_info:
+    name: vault
+  register: vault_status
+
+- name: Fail if Vault is restarting
+  ansible.builtin.fail:
+    msg: "Vault is in a crash loop! Check 'docker logs vault' on the server."
+  when: vault_status.container.State.Restarting or not vault_status.container.State.Running

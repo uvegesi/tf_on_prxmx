@@ -23,7 +23,15 @@
     - k3s_worker
   tags: ["k3s_worker"]
 
-# 4. Setup Vault Server
+# 4. Install Tailscale on Vault server
+- name: Setup Tailscale
+  hosts: vault
+  become: true
+  roles:
+    - tailscale
+  tags: ["tailscale"]
+
+# 5. Setup Vault Server
 - name: Setup Vault Server
   hosts: vault
   become: true
