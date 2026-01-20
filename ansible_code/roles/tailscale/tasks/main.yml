@@ -29,7 +29,7 @@
 # 4. Authenticate (Only runs if not already logged in)
 - name: Bring Tailscale online
   ansible.builtin.command: >
-    tailscale up --authkey={{ tailscale_auth_key }}
+    tailscale up --auth-key={{ tailscale_auth_key }}
   # We check if the socket exists to know if it is running, 
   # but checking 'tailscale status' is often more reliable for idempotency.
   # For simplicity, this works, but usually 'creates' isn't perfect for 'tailscale up'.

@@ -1,99 +1,97 @@
 ---
-- name: Install Docker Engine and dependencies
-  ansible.builtin.apt:
-    name:
-      - apt-transport-https
-      - ca-certificates
-      - curl
-      - gnupg
-      - lsb-release
-      - python3-pip
-      - docker.io
+# 1. Download and Dearmor Key
+- name: Download HashiCorp GPG key
+  ansible.builtin.get_url:
+    url: "https://apt.releases.hashicorp.com/gpg"
+    dest: "/usr/share/keyrings/hashicorp-archive-keyring.gpg"
+    mode: '0644'
+    decompress: true # This sometimes helps, but usually get_url just grabs raw bytes
+
+# 2. Check if key is ASCII
+- name: Check key format
+  ansible.builtin.command: head -n 1 /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  register: key_head
+  changed_when: false
+
+# 3. Convert to Binary ONLY if it is ASCII
+- name: Convert key to binary if needed
+  ansible.builtin.shell: |
+    mv /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.asc
+    gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.asc
+    rm /tmp/hashicorp.asc
+  when: "'BEGIN PGP' in key_head.stdout"
+
+# 4. Add Repository
+- name: Add HashiCorp Repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    filename: hashicorp
+    state: present
     update_cache: true
+
+# 5. Install Vault Binary
+- name: Install Vault
+  ansible.builtin.apt:
+    name: vault
     state: present
+    update_cache: true
 
-- name: Install Docker SDK for Python
-  ansible.builtin.pip:
-    name: 
-    - "docker==6.1.3"
-    - "urllib3<2.0"
-    - "requests==2.31.0"
-    state: present
-    executable: pip3
+# 6. Remove Default Config File
+- name: Remove default config file
+  ansible.builtin.file:
+    path: /etc/vault.d/vault.hcl
+    state: absent
 
-- name: Ensure Docker is started and enabled
-  ansible.builtin.systemd:
-    name: docker
-    state: started
-    enabled: true
-
-- name: Create Vault directories
+# 7. Create Directories with Correct Permissions
+- name: Ensure Vault directories exist
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
-    mode: '0777'
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0750'
   loop:
-    - "/opt/vault/config"
-    - "/opt/vault/data"
+    - "{{ vault_paths.data }}"
+    - "{{ vault_paths.tls }}"
+    - "{{ vault_paths.config }}"
 
-- name: Configure Vault (Filesystem storage)
+# 8. Copy Tailscale Certs to Vault Directory
+- name: Copy Certificates to Vault TLS dir
   ansible.builtin.copy:
-    dest: "/opt/vault/config/vault-config.hcl"
+    src: "/opt/vault/tls/{{ vault_fqdn }}.{{ item }}" # Assuming original location
+    dest: "{{ vault_paths.tls }}/{{ vault_fqdn }}.{{ item }}"
+    remote_src: true
+    owner: "{{ vault_user }}"
+    group: "{{ vault_group }}"
+    mode: '0640'
+  loop:
+    - crt
+    - key
+  notify: Restart Vault
+
+# 9. Configure Vault (Write JSON content to .hcl file)
+- name: Configure Vault
+  ansible.builtin.template:
+    src: vault-config.json.j2
+    dest: "/etc/vault.d/vault.hcl"
+    owner: vault
+    group: vault
+    mode: '0640'
+  notify: Restart Vault
+
+# 10. Set VAULT_ADDR globally for all users
+- name: Add Vault environment variables
+  ansible.builtin.copy:
+    dest: /etc/profile.d/vault.sh
     content: |
-      {
-        "disable_mlock": true,
-        "storage": {
-          "file": {
-            "path": "/vault/file"
-          }
-        },
-        "listener": [
-          {
-            "tcp": {
-              "address": "0.0.0.0:8200",
-              "tls_cert_file": "/tailscale-certs/{{ inventory_hostname }}.{{ tailscale_domain }}.crt",
-              "tls_key_file": "/tailscale-certs/{{ inventory_hostname }}.{{ tailscale_domain }}.key"
-            }
-          }
-        ],
-        "default_lease_ttl": "168h",
-        "max_lease_ttl": "720h",
-        "ui": true
-      }
+      export VAULT_ADDR='https://127.0.0.1:8200'
+      export VAULT_SKIP_VERIFY=true
     mode: '0644'
 
-- name: Run Vault Container
-  community.docker.docker_container:
+# 11. Ensure Service is Running
+- name: Enable and Start Vault Service
+  ansible.builtin.systemd:
     name: vault
-    image: hashicorp/vault:latest
     state: started
-    restart_policy: always
-    privileged: true
-    ports:
-      - "8200:8200"
-    env:
-      VAULT_API_ADDR: "http://192.168.0.203:8200"
-      VAULT_LISTEN_ADDRESS: "0.0.0.0:8200"
-    capabilities:
-      - IPC_LOCK
-    volumes:
-      - "/opt/vault/config/vault-config.hcl:/vault/config/vault-config.hcl"
-      - "/opt/vault/data:/vault/file"
-      - "/opt/vault/config/vault-config.hcl:/vault/config/vault-config.hcl" 
-      - "/opt/vault/data:/vault/file" 
-      - "/var/lib/tailscale/certs:/tailscale-certs:ro"
-    command: "server -config=/vault/config/vault-config.hcl"
-
-- name: Wait 15 seconds for Vault to stabilize
-  ansible.builtin.pause:
-    seconds: 15
-
-- name: Get Vault Container Status
-  community.docker.docker_container_info:
-    name: vault
-  register: vault_status
-
-- name: Fail if Vault is restarting
-  ansible.builtin.fail:
-    msg: "Vault is in a crash loop! Check 'docker logs vault' on the server."
-  when: vault_status.container.State.Restarting or not vault_status.container.State.Running
+    enabled: true
+    daemon_reload: true

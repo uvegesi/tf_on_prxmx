@@ -1,0 +1,17 @@
+{
+  "disable_mlock": true,
+  "storage": {
+    "file": {
+      "path": "{{ vault_paths.data }}"
+    }
+  },
+  "listener": {
+    "tcp": {
+      "address": "0.0.0.0:{{ vault_port }}",
+      "tls_cert_file": "{{ vault_paths.tls }}/{{ vault_fqdn }}.crt",
+      "tls_key_file": "{{ vault_paths.tls }}/{{ vault_fqdn }}.key"
+    }
+  },
+  "api_addr": "{{ vault_api_addr }}",
+  "ui": true
+}

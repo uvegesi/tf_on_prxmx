@@ -1,0 +1,47 @@
+# Docker and System dependencies
+vault_os_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - python3-pip
+  - docker.io
+
+# Python Libraries (pinned versions)
+vault_pip_packages:
+  - "docker==6.1.3"
+  - "urllib3<2.0"
+  - "requests==2.31.0"
+
+# Directories to create
+vault_directories:
+  - "/opt/vault/config"
+  - "/opt/vault/data"
+  - "/opt/vault/tls"
+
+vault_capabilities:
+  - IPC_LOCK
+
+vault_volumes:
+  - "{{ vault_host_dirs.config }}/vault-config.hcl:{{ vault_container_dirs.config }}/vault-config.hcl"
+  - "{{ vault_host_dirs.data }}:{{ vault_container_dirs.data }}"
+  - "{{ vault_host_dirs.tls }}:{{ vault_container_dirs.tls }}"
+
+vault_command: >-
+  server -config={{ vault_container_dirs.config }}/vault-config.hcl
+
+# Delete 'vault_container_dirs' and 'vault_host_dirs'
+# Replace with just 'vault_paths'
+
+vault_user: "vault"
+vault_group: "vault"
+
+vault_paths:
+  config: "/etc/vault.d"
+  data: "/opt/vault/data"
+  tls: "/opt/vault/tls"
+
+# Use standard ports
+vault_port: 8200
+vault_api_addr: "https://{{ vault_fqdn }}:{{ vault_port }}"

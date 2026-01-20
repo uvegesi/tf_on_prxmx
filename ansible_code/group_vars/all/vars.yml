@@ -1,0 +1,14 @@
+tailscale_domain: "tailb25404.ts.net" 
+vault_host_port: 8200
+vault_container_port: 8200
+vault_fqdn: "{{ inventory_hostname }}.{{ tailscale_domain }}"
+
+vault_host_dirs:
+  config: "/opt/vault/config"
+  data: "/opt/vault/data"
+  tls: "/opt/vault/tls"
+
+vault_container_dirs:
+  config: "/vault/config"
+  data: "/vault/file"
+  tls: "/vault/tls"
