@@ -1,5 +1,7 @@
 ---
-# 1. Prepare all nodes
+# ----------------------------------------------------------------------
+# 1. BASE SETUP
+# ----------------------------------------------------------------------
 - name: Prepare System
   hosts: all
   become: true
@@ -7,15 +9,30 @@
     - common
   tags: ["prepare"]
 
-# 2. Setup the Control Plane
+# ----------------------------------------------------------------------
+# 2. INFRASTRUCTURE (Vault  & Tailscale)
+# ----------------------------------------------------------------------
+- name: Setup Vault Infrastructure
+  hosts: vault
+  become: true
+  roles:
+    - { role: tailscale, tags: ["tailscale"] }
+    - { role: vault_server, tags: ["vault"] }
+
+# ----------------------------------------------------------------------
+# 3. KUBERNETES CLUSTER
+# ----------------------------------------------------------------------
 - name: Setup K3s Master
   hosts: master
   become: true
+  # REQUIRED: Map your secret vars so the role can write to Vault
+  vars:
+    env_vault_token: "{{ secret_vault_token }}"
+    env_vault_addr:  "{{ secret_vault_addr }}"
   roles:
     - k3s_master
   tags: ["k3s_master"]
 
-# 3. Join the Workers
 - name: Setup K3s Workers
   hosts: node
   become: true
@@ -23,26 +40,16 @@
     - k3s_worker
   tags: ["k3s_worker"]
 
-# 4. Install Tailscale on Vault server
-- name: Setup Tailscale
-  hosts: vault
-  become: true
-  roles:
-    - tailscale
-  tags: ["tailscale"]
-
-# 5. Setup Vault Server
-- name: Setup Vault Server
-  hosts: vault
-  become: true
-  roles:
-    - vault_server
-  tags: ["vault"]
-
-# 6. Setup GitHub Runner
+# ----------------------------------------------------------------------
+# 4. CI/CD RUNNER
+# ----------------------------------------------------------------------
 - name: Setup GitHub Runner
   hosts: runner
   become: true
+  # REQUIRED: Map secrets if the runner setup needs to fetch tokens (PAT)
+  vars:
+    env_vault_token: "{{ secret_vault_token }}"
+    env_vault_addr:  "{{ secret_vault_addr }}"
   roles:
     - github_runner
   tags: ["github_runner"]

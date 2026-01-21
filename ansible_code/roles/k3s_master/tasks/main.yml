@@ -23,3 +23,25 @@
   set_fact:
     master_ip: "{{ ansible_host }}"
     cacheable: yes
+
+- name: Read Kubeconfig from Master
+  slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k3s_config_base64
+  # Only run if installation succeeded
+  when: k3s_token is defined
+  no_log: true 
+
+- name: Store Kubeconfig in Vault
+  community.hashi_vault.vault_write:
+    url: "{{ env_vault_addr }}"
+    token: "{{ env_vault_token }}"
+    path: secret/data/infra/k8s
+    validate_certs: false # Set to true if you have valid CA certs
+    data:
+      # We replace '127.0.0.1' with the actual Master IP so the Runner can connect remotely
+      kubeconfig: "{{ k3s_config_base64.content | b64decode | replace('127.0.0.1', master_ip) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: k3s_token is defined
