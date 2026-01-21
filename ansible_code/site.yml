@@ -25,11 +25,13 @@
 - name: Setup K3s Master
   hosts: master
   become: true
+  gather_facts: true
   # REQUIRED: Map your secret vars so the role can write to Vault
   vars:
     env_vault_token: "{{ secret_vault_token }}"
     env_vault_addr:  "{{ secret_vault_addr }}"
   roles:
+    - { role: tailscale, tags: ["tailscale"] }
     - k3s_master
   tags: ["k3s_master"]
 
