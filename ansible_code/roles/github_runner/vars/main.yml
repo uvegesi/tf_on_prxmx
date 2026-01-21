@@ -1,0 +1,17 @@
+# roles/github_runner/vars/main.yml
+runner_version: "2.311.0"
+runner_user: "runner"
+runner_group: "runner"
+runner_dir: "/opt/actions-runner"
+github_repo_url: "https://github.com/uvegesi/test_app_prxmx" 
+
+# REQUIRED: You must pass this variable at runtime or in encrypted vars!
+# github_registration_token: "A1B2C3D4..."
+
+runner_packages:
+  - curl
+  - git
+  - jq
+  - tar
+  - libdigest-sha-perl
+  - libicu-dev # Required for .NET Core

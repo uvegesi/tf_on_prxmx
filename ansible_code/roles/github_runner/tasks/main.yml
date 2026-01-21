@@ -1,0 +1,145 @@
+---
+# ------------------------------------------------------------------------------
+# PRE-FLIGHT: GET SECRETS FROM VAULT & GITHUB
+# ------------------------------------------------------------------------------
+- name: Fetch GitHub PAT from Vault
+  set_fact:
+    github_pat: >-
+      {{ lookup('community.hashi_vault.hashi_vault', 
+                'secret/github', 
+                key='data', 
+                token=env_vault_token, 
+                url=env_vault_addr,
+                validate_certs=secret_vault_validate_certs)['pat'] }}
+  no_log: true
+
+- name: Generate Fresh Registration Token
+  ansible.builtin.uri:
+    # Dynamically parse your repo owner/name from the URL
+    url: "https://api.github.com/repos/{{ github_repo_url | regex_replace('https://github.com/', '') | regex_replace('.git$', '') }}/actions/runners/registration-token"
+    method: POST
+    headers:
+      Authorization: "token {{ github_pat }}"
+      Accept: "application/vnd.github+json"
+    status_code: 201
+  register: api_response
+  # Only run if we actually need to register (checks if config.sh exists)
+  when: github_registration_token is not defined
+
+- name: Set Registration Token Fact
+  ansible.builtin.set_fact:
+    github_registration_token: "{{ api_response.json.token }}"
+  when: github_registration_token is not defined
+
+# ------------------------------------------------------------------------------
+# PHASE 0. NETWORK SETUP
+# ------------------------------------------------------------------------------
+- name: Install and Authenticate Tailscale
+  include_role:
+    name: tailscale
+
+# ------------------------------------------------------------------------------
+# PHASE 1: SYSTEM PREP & DEPENDENCIES
+# ------------------------------------------------------------------------------
+- name: Prepare System
+  block:
+    - name: Update Apt Cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Runner Dependencies
+      ansible.builtin.apt:
+        name: "{{ runner_packages }}"
+        state: present
+
+    - name: Install Docker
+      ansible.builtin.apt:
+        name: docker.io
+        state: present
+
+# ------------------------------------------------------------------------------
+# PHASE 2: USER CONFIGURATION
+# ------------------------------------------------------------------------------
+- name: Setup Runner User
+  block:
+    - name: Create runner group
+      ansible.builtin.group:
+        name: "{{ runner_group }}"
+
+    - name: Create runner user
+      ansible.builtin.user:
+        name: "{{ runner_user }}"
+        group: "{{ runner_group }}"
+        groups: docker
+        append: true
+        shell: /bin/bash
+        home: "/home/{{ runner_user }}"
+
+    - name: Create runner directory
+      ansible.builtin.file:
+        path: "{{ runner_dir }}"
+        state: directory
+        owner: "{{ runner_user }}"
+        group: "{{ runner_group }}"
+        mode: '0755'
+
+# ------------------------------------------------------------------------------
+# PHASE 3: INSTALLATION
+# ------------------------------------------------------------------------------
+- name: Install GitHub Runner
+  block:
+    - name: Check if runner is already installed
+      ansible.builtin.stat:
+        path: "{{ runner_dir }}/config.sh"
+      register: runner_installed
+
+    - name: Download GitHub Actions Runner
+      ansible.builtin.get_url:
+        url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}/actions-runner-linux-x64-{{ runner_version }}.tar.gz"
+        dest: "/tmp/actions-runner.tar.gz"
+        mode: '0644'
+      when: not runner_installed.stat.exists
+
+    - name: Extract Runner
+      ansible.builtin.unarchive:
+        src: "/tmp/actions-runner.tar.gz"
+        dest: "{{ runner_dir }}"
+        remote_src: true
+        owner: "{{ runner_user }}"
+        group: "{{ runner_group }}"
+      when: not runner_installed.stat.exists
+
+# ------------------------------------------------------------------------------
+# PHASE 4: REGISTRATION & SERVICE
+# ------------------------------------------------------------------------------
+- name: Register and Configure Runner
+  block:
+    - name: Check if runner is already configured
+      ansible.builtin.stat:
+        path: "{{ runner_dir }}/.runner"
+      register: runner_configured
+
+    - name: Configure Runner (Register with GitHub)
+      ansible.builtin.command:
+        cmd: "./config.sh --url {{ github_repo_url }} --token {{ github_registration_token }} --unattended --replace"
+        chdir: "{{ runner_dir }}"
+      become: true
+      become_user: "{{ runner_user }}"
+      # Fails nicely if you forget to provide the token
+      when: 
+        - not runner_configured.stat.exists
+        - github_registration_token is defined
+
+    - name: Install Runner Service
+      ansible.builtin.command:
+        cmd: "./svc.sh install {{ runner_user }}"
+        chdir: "{{ runner_dir }}"
+      failed_when: false # Ignore if service already exists
+      register: svc_install
+
+    - name: Start Runner Service
+      ansible.builtin.command:
+        cmd: "./svc.sh start"
+        chdir: "{{ runner_dir }}"
+      when: svc_install.rc == 0 or svc_install.rc == 1

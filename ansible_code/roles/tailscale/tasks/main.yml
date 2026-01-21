@@ -1,15 +1,18 @@
 ---
-# 1. Download the Signing Key (Cleaner than curl)
+# roles/tailscale/tasks/main.yml
+
+# 1. Download Key
 - name: Download Tailscale repo key
   ansible.builtin.get_url:
-    url: "https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg"
+    # Uses the codename (e.g., 'jammy', 'focal', 'bookworm') dynamically
+    url: "https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}.noarmor.gpg"
     dest: "/usr/share/keyrings/tailscale-archive-keyring.gpg"
     mode: '0644'
 
-# 2. Add the Repository Source
+# 2. Add Repo
 - name: Add Tailscale repo
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bookworm main"
+    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} main"
     filename: tailscale
     state: present
 
@@ -26,31 +29,14 @@
     state: started
     enabled: true
 
-# 4. Authenticate (Only runs if not already logged in)
+# 4. Authenticate
+- name: Check if Tailscale is already logged in
+  command: tailscale status
+  register: ts_status
+  changed_when: false
+  failed_when: false
+
 - name: Bring Tailscale online
   ansible.builtin.command: >
-    tailscale up --auth-key={{ tailscale_auth_key }}
-  # We check if the socket exists to know if it is running, 
-  # but checking 'tailscale status' is often more reliable for idempotency.
-  # For simplicity, this works, but usually 'creates' isn't perfect for 'tailscale up'.
-  # A simple workaround to prevent re-running is checking for the config file.
-  args:
-    creates: /var/lib/tailscale/tailscaled.state
-
-# 5. Create a Directory for Vault Certs (CRITICAL STEP)
-# We need a specific place to store certs so we can mount them into Docker later.
-- name: Create Vault TLS directory
-  ansible.builtin.file:
-    path: /opt/vault/tls
-    state: directory
-    mode: '0755'
-
-# 6. Generate the Certs
-# 'tailscale cert' drops files in the CURRENT directory.
-# We use 'chdir' to force them into /opt/vault/tls
-- name: Request Tailscale HTTPS certificate
-  ansible.builtin.command: >
-    tailscale cert {{ inventory_hostname }}.{{ tailscale_domain }}
-  args:
-    chdir: /opt/vault/tls   # <--- Run inside this folder
-    creates: "/opt/vault/tls/{{ inventory_hostname }}.{{ tailscale_domain }}.crt"
+    tailscale up --auth-key={{ tailscale_auth_key }} --hostname={{ inventory_hostname }}
+  when: ts_status.rc != 0

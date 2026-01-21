@@ -38,3 +38,11 @@
   roles:
     - vault_server
   tags: ["vault"]
+
+# 6. Setup GitHub Runner
+- name: Setup GitHub Runner
+  hosts: runner
+  become: true
+  roles:
+    - github_runner
+  tags: ["github_runner"]

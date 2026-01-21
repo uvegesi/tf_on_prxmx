@@ -32,5 +32,13 @@ containers = {
     disk_size = 8
     ip        = "192.168.0.203/24"
     template  = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+  },
+  "github-runner" = {
+    vm_id     = 301
+    cores     = 4          # Java builds need CPU
+    memory    = 4096       # 4GB RAM prevents Java OOM errors
+    disk_size = 20         # Needs space for Docker images/layers
+    ip        = "192.168.0.204/24"
+    template  = "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
   }
 }

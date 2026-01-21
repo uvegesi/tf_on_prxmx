@@ -1,0 +1,9 @@
+---
+github_repo_url: "https://github.com/uvegesi/test_app_prxmx.git"
+
+# 2. Automatically grab the global secrets defined in group_vars/all/secrets.yml
+# This acts as the "mapping" layer inside the role.
+env_vault_token: "{{ secret_vault_token }}"
+env_vault_addr:  "{{ secret_vault_addr }}"
+
+env_vault_validate_certs: "{{ secret_vault_validate_certs | default(false) }}"

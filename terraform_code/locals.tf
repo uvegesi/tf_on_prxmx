@@ -29,6 +29,16 @@ locals {
     if strcontains(name, "vault")
   }
 
+  # 4. Extract GitHub Runner Host (NEW)
+  runner_hosts = {
+    for name, lxc in proxmox_virtual_environment_container.infra_nodes :
+    name => {
+      ansible_host = split("/", var.containers[name].ip)[0]
+      ansible_user = "root"
+    }
+    if strcontains(name, "github") || strcontains(name, "runner") # Matches "github-runner"
+  }
+
   ansible_inventory = {
     all = {
       vars = {
@@ -40,6 +50,7 @@ locals {
         master = { hosts = local.master_hosts }
         node   = { hosts = local.worker_hosts }
         vault  = { hosts = local.vault_hosts }
+        runner = { hosts = local.runner_hosts }
 
         k3s_cluster = {
           children = {

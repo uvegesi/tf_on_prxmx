@@ -102,6 +102,7 @@ resource "proxmox_virtual_environment_container" "infra_nodes" {
   # This allows Docker to run inside the LXC
   features {
     nesting = true
+    # keyctl  = true
   }
 }
 
